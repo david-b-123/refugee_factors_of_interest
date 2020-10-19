@@ -1,0 +1,871 @@
+---
+title: "Refugee Analysis"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(highcharter)
+library(shiny)
+library(FactoMineR)
+library(mclust)
+library(tidyr)
+library(dplyr)
+library(PCAmixdata)
+library(DT)
+
+categorical <- c("Continent","Region","Country","Area","Longitude","Latitude","Climate","Reason","Planning",'Access','Management','Main occupation','Shelter','Health Facility (Hospital)','Health Facility (Clinic)','Education Facility (Primary School)','Education Facility (Secondary School)','Community Facility (Recreation, Social)','Distribution Centre','Commerce','Industry','Power','Water','Sanitation','Communication (Internet, mobile phone)','Other infrastructure')
+
+numerical <- c("Lifespan (years)", "Density  (People/km2)", "Area  (m2/person)","Size (km2)", "Population", "Density", "Percentage_Male", "Percentage_Female", "Percentage_0 to 11", "Percentage_12 to 17", "Percentage_18 to 59", "Percentage _60 plus", "Average Temperature (Celsius)", "Average Rain (mm)")
+
+groups <- list(Location = c("Continent", "Region", "Country", "Area", "Longitude", "Latitude"),
+               Climate = c("Climate", "Average Temperature (Celsius)", "Average Rain (mm)"),
+               Lifespan = c("Lifespan (years)"), 
+               Population = c("Population"), 
+               Density = c("Density  (People/km2)","Area  (m2/person)","Size (km2)"),
+               Demographics = c("Percentage_Male", "Percentage_Female", "Percentage_0 to 11", "Percentage_12 to 17", "Percentage_18 to 59", "Percentage _60 plus"),
+               Logistics = c("Planning",'Access','Management'),
+               Infrastructure = c('Health Facility (Hospital)','Health Facility (Clinic)','Education Facility (Primary School)','Education Facility (Secondary School)','Community Facility (Recreation, Social)','Power','Water','Communication (Internet, mobile phone)','Other infrastructure','Sanitation'),
+               Development = c('Distribution Centre','Commerce','Industry','Main occupation','Shelter')
+               )
+
+
+other_groups <- list(Location = c("Continent", "Region", "Country", "Area", "Longitude", "Latitude"),
+               Climate = c("Climate", "Average Temperature (Celsius)", "Average Rain (mm)"),
+               Lifespan = c("Lifespan (years)"), 
+               Population = c("Population"), 
+               Density = c("Density  (People/km2)","Area  (m2/person)","Size (km2)"),
+               Demographics = c("Percentage_Male", "Percentage_Female", "Percentage_0 to 11", "Percentage_12 to 17", "Percentage_18 to 59", "Percentage _60 plus"),
+               Logistics = c("Planning",'Management')
+               )  
+  
+
+
+
+area_groups <- list(Location = c("Continent", "Region", "Country", "Longitude", "Latitude"),
+               Climate = c("Climate", "Average Temperature (Celsius)", "Average Rain (mm)"),
+               Lifespan = c("Lifespan (years)"), 
+               Population = c("Population"), 
+               Density = c("Density  (People/km2)","Area  (m2/person)","Size (km2)"), 
+               Demographics = c("Percentage_Male", "Percentage_Female", "Percentage_0 to 11", "Percentage_12 to 17", "Percentage_18 to 59", "Percentage _60 plus"),
+               Logistics = c("Planning",'Management'),
+               Infrastructure = c('Health Facility (Hospital)','Health Facility (Clinic)','Education Facility (Primary School)','Education Facility (Secondary School)','Community Facility (Recreation, Social)','Power','Water','Sanitation'),
+               Development = c('Distribution Centre','Commerce','Industry','Main occupation','Shelter')
+               )  
+  
+
+refugee <- readxl::read_xlsx("./Refugee Camp Data Analysis (working file) - Copy v4.xlsx")
+
+proper_refugee_data<-refugee[,which(colnames(refugee) %in% categorical)]
+numerical_refugee_data<-refugee[,which(colnames(refugee) %in% numerical)]
+
+
+ID_refugee_camp <- refugee$`Accommodation Type`==c("Refugee Camp")
+ID_IDP_settlement <- refugee$`Accommodation Type`==c("IDP Settlement")
+ID_community_settlement <- refugee$`Accommodation Type`==c("Community Settlement")
+ID_status_open <- refugee$Condition == c("Open")
+ID_status_open_rural <- refugee$Condition == c("Open") & refugee$Area == c("Rural")
+ID_status_open_all_urban <- refugee$Condition == c("Open") & ( refugee$Area == c("Semi-urban") |  refugee$Area == c("Urban") )
+ID_status_closed <- refugee$Condition == c("Closed")
+
+
+
+data__refugee_camp___status_open<-cbind(numerical_refugee_data[as.logical(ID_refugee_camp*ID_status_open),],proper_refugee_data[as.logical(ID_refugee_camp*ID_status_open),])
+
+
+
+MCA___refugee_camp___status_open<-PCAmixdata::MFAmix(data = data__refugee_camp___status_open[,do.call('c',lapply(groups,function(X){
+  which(colnames(data__refugee_camp___status_open) %in% X)
+}))],ndim = 2,rename.level = T,groups = c(do.call('c',lapply(c(1:length(groups)),function(X){
+  rep(X,length(groups[[X]]))
+}))),name.groups = c(names(groups)),graph = F)
+
+
+
+
+data__refugee_camp___status_open_rural<-cbind(numerical_refugee_data[as.logical(ID_refugee_camp*ID_status_open_rural),],proper_refugee_data[as.logical(ID_refugee_camp*ID_status_open_rural),])
+
+
+data__refugee_camp___status_open_rural = data__refugee_camp___status_open_rural[,-17]
+
+
+MCA___refugee_camp___status_open_rural<-PCAmixdata::MFAmix(data = data__refugee_camp___status_open_rural[,do.call('c',lapply(area_groups,function(X){
+  which(colnames(data__refugee_camp___status_open_rural) %in% X)
+}))],ndim = 2,rename.level = T,groups = c(do.call('c',lapply(c(1:length(area_groups)),function(X){
+  rep(X,length(area_groups[[X]]))
+}))),name.groups = c(names(area_groups)),graph = F)
+
+
+
+
+
+
+
+
+data__refugee_camp___status_open_all_urban<-cbind(numerical_refugee_data[as.logical(ID_refugee_camp*ID_status_open_all_urban),],proper_refugee_data[as.logical(ID_refugee_camp*ID_status_open_all_urban),])
+
+
+data__refugee_camp___status_open_all_urban = data__refugee_camp___status_open_all_urban[,which(apply(data__refugee_camp___status_open_all_urban,2,function(X){length(unique(X))})>1)]
+
+MCA___refugee_camp___status_open_all_urban<-PCAmixdata::MFAmix(data = data__refugee_camp___status_open_all_urban[,do.call('c',lapply(area_groups,function(X){
+  which(colnames(data__refugee_camp___status_open_all_urban) %in% X)
+}))],ndim = 2,rename.level = T,groups = c(do.call('c',lapply(c(1:length(area_groups)),function(X){
+  rep(X,length(area_groups[[X]]))
+}))),name.groups = c(names(area_groups)),graph = F)
+
+
+
+
+
+
+data__refugee_camp___status_closed<-cbind(numerical_refugee_data[as.logical(ID_refugee_camp*ID_status_closed),],proper_refugee_data[as.logical(ID_refugee_camp*ID_status_closed),])
+
+
+
+MCA___refugee_camp___status_closed<-PCAmixdata::MFAmix(data = data__refugee_camp___status_closed[,do.call('c',lapply(other_groups,function(X){
+  which(colnames(data__refugee_camp___status_closed) %in% X)
+}))],ndim = 2,rename.level = T,groups = c(do.call('c',lapply(c(1:length(other_groups)),function(X){
+  rep(X,length(other_groups[[X]]))
+}))),name.groups = c(names(other_groups)),graph = F)
+
+
+
+
+
+data__refugee_camp___status_all<-cbind(numerical_refugee_data[as.logical(ID_refugee_camp),],proper_refugee_data[as.logical(ID_refugee_camp),])
+
+
+
+MCA___refugee_camp___status_all<-PCAmixdata::MFAmix(data = data__refugee_camp___status_all[,do.call('c',lapply(other_groups,function(X){
+  which(colnames(data__refugee_camp___status_all) %in% X)
+}))],ndim = 2,rename.level = T,groups = c(do.call('c',lapply(c(1:length(other_groups)),function(X){
+  rep(X,length(other_groups[[X]]))
+}))),name.groups = c(names(other_groups)),graph = F)
+
+
+
+data__IDP_settlement___status_all<-cbind(numerical_refugee_data[as.logical(ID_IDP_settlement),],proper_refugee_data[as.logical(ID_IDP_settlement),])
+
+
+
+MCA___IDP_settlement___status_all<-PCAmixdata::MFAmix(data = data__IDP_settlement___status_all[,do.call('c',lapply(other_groups,function(X){
+  which(colnames(data__IDP_settlement___status_all) %in% X)
+}))],ndim = 2,rename.level = T,groups = c(do.call('c',lapply(c(1:length(other_groups)),function(X){
+  rep(X,length(other_groups[[X]]))
+}))),name.groups = c(names(other_groups)),graph = F)
+
+
+
+data__community_settlement___status_all<-cbind(numerical_refugee_data[as.logical(ID_community_settlement),],proper_refugee_data[as.logical(ID_community_settlement),])
+
+
+
+MCA___community_settlement___status_all<-PCAmixdata::MFAmix(data = data__community_settlement___status_all[,do.call('c',lapply(other_groups,function(X){
+  which(colnames(data__community_settlement___status_all) %in% X)
+}))],ndim = 2,rename.level = T,groups = c(do.call('c',lapply(c(1:length(other_groups)),function(X){
+  rep(X,length(other_groups[[X]]))
+}))),name.groups = c(names(other_groups)),graph = F)
+
+
+# save.image("./main.Rdata")
+
+
+# load("./main.Rdata")
+
+
+```
+
+
+
+Refugee Camp
+=======================================================================
+Inputs {.sidebar}
+-------------------------------------
+```{r}
+selectInput(inputId = "status_variables",
+                   label = "Status",
+            choices = c("All","Open","Open-Rural","Open-Not Rural","Closed"))
+
+selectInput(inputId = "factor_variable1",
+                   label = "Factor of Interest",
+            choices = c("Lifespan","Density"))
+
+```
+
+Row {data-height=500} 
+-------------------------------------
+
+### How do the variables correlate with my Factor of interest?
+
+```{r}
+
+  renderHighchart({
+
+    using_data <- MCA___refugee_camp___status_all
+    id_selection <- rep(T,length(ID_refugee_camp))
+
+    if (input$status_variables=="Open"){
+      using_data <- MCA___refugee_camp___status_open
+      id_selection <- as.logical(ID_status_open*ID_refugee_camp)
+    }
+    if (input$status_variables=="Open-Rural"){
+      using_data <- MCA___refugee_camp___status_open_rural
+      id_selection <- as.logical(ID_status_open_rural*ID_refugee_camp)
+    }
+    if (input$status_variables=="Open-Not Rural"){
+      using_data <- MCA___refugee_camp___status_open_all_urban
+      id_selection <- as.logical(ID_status_open_all_urban*ID_refugee_camp)
+    }
+    if (input$status_variables=="Closed"){
+      using_data <- MCA___refugee_camp___status_closed
+      id_selection <- as.logical(ID_status_closed*ID_refugee_camp)
+    }
+    if (input$status_variables=="All"){
+      using_data <- MCA___refugee_camp___status_all
+      id_selection <- as.logical(ID_refugee_camp)
+    }
+
+
+    if(input$factor_variable1=="Lifespan"){
+      type_factor<-"Lifespan..years."
+    }
+    if(input$factor_variable1=="Density"){
+      type_factor<-"Density...People.km2."
+    }
+
+
+    data_MCA<-as.matrix(proxy::simil(using_data[["quanti"]][["coord"]],"cosine"))
+    data_MCA<-data.frame(data_MCA)
+    main <- data.frame(Names=colnames(data_MCA)[-which(colnames(data_MCA)==type_factor)],Correlation=data_MCA[-which(colnames(data_MCA)==type_factor),which(colnames(data_MCA)==type_factor)])
+    main<-main[order(as.numeric(main[,2])),]
+
+      main<-main[which(!c(main$Names%in%groups$Location | main$Names%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),main$Names))),]
+
+    main$Direction<-as.numeric(main[,2])>=0
+    main$Direction[main$Direction==F]<-c("Below")
+    main$Direction[main$Direction==T]<-c("Above")
+
+    main_1 <- main[which(main$Names %in% c("Lifespan..years.","Population","Density...People.km2.","Area...m2.person.","Size..km2.")),]
+    # main_2 <- main[which(main$Names %in% c("Percentage_Male","Percentage_Female")),]
+    main_3 <- main[which(main$Names %in% c("Percentage_0.to.11","Percentage_12.to.17","Percentage_18.to.59","Percentage._60.plus")),]
+    main_space <- rep(0,dim(main)[2])
+
+    main <- rbind(main_1,
+                  main_space,
+                  # main_2,
+                  # main_space,
+                  main_3)
+
+    main$Order<-c(1:dim(main)[1])
+
+  hc <- hchart(main,type="column",hcaes(y=Correlation,x=Order,group=Direction,grvar=Names),dataLabels = list(enabled = TRUE, format='{point.grvar}'),showInLegend=F) %>% hc_tooltip(pointFormat = "{point.grvar}") %>% hc_xAxis(visible=F)
+
+
+  hc
+
+  }) 
+
+
+```
+
+
+### Which overall group contributes to my Factor of interest the most?
+```{r}
+
+  renderHighchart({
+
+    using_data <- MCA___refugee_camp___status_all
+    id_selection <- rep(T,length(ID_refugee_camp))
+
+    if (input$status_variables=="Open"){
+      using_data <- MCA___refugee_camp___status_open
+      id_selection <- as.logical(ID_status_open*ID_refugee_camp)
+    }
+    if (input$status_variables=="Open-Rural"){
+      using_data <- MCA___refugee_camp___status_open_rural
+      id_selection <- as.logical(ID_status_open_rural*ID_refugee_camp)
+    }
+    if (input$status_variables=="Open-Not Rural"){
+      using_data <- MCA___refugee_camp___status_open_all_urban
+      id_selection <- as.logical(ID_status_open_all_urban*ID_refugee_camp)
+    }
+    if (input$status_variables=="Closed"){
+      using_data <- MCA___refugee_camp___status_closed
+      id_selection <- as.logical(ID_status_closed*ID_refugee_camp)
+    }
+    if (input$status_variables=="All"){
+      using_data <- MCA___refugee_camp___status_all
+      id_selection <- as.logical(ID_refugee_camp)
+    }
+
+
+    data_MCA<-as.matrix(cor(do.call('cbind',lapply(using_data[["ind.partial"]],function(X){X[,1]}))))
+    data_MCA<-data.frame(data_MCA)
+    main <- data.frame(Names=colnames(data_MCA)[-which(colnames(data_MCA)==input$factor_variable1)],Contribution=data_MCA[-which(colnames(data_MCA)==input$factor_variable1),which(colnames(data_MCA)==input$factor_variable1)])
+    main<-main[order(as.numeric(main[,2])),]
+
+    main$Direction<-as.numeric(main[,2])>=0
+    main$Direction[main$Direction==F]<-c("Below")
+    main$Direction[main$Direction==T]<-c("Above")
+
+    main$Order<-as.character(letters[c(1:dim(main)[1])])
+
+    main$SubGroups <- do.call('c',lapply(main$Names,function(X){
+      paste0(groups[[which(names(groups)==X)]],collapse=" ; ")
+    }))
+
+  hc <- hchart(main,type="bar",hcaes(y=Contribution,group=Order,grvar=Names,col=Names,label=SubGroups),dataLabels = list(enabled = TRUE, format='{point.grvar}'),showInLegend=F,column = list(stacking = "normal")) %>%
+hc_tooltip(pointFormat = "{point.label}") %>% hc_xAxis(visible=F)
+
+  hc
+  }) 
+
+
+```
+
+
+Row {data-height=500} 
+-------------------------------------
+
+
+
+
+### Barplot ranking the most similar to my Factor of interest?
+```{r}
+
+  renderHighchart({
+
+    using_data <- MCA___refugee_camp___status_all
+    id_selection <- rep(T,length(ID_refugee_camp))
+
+    if (input$status_variables=="Open"){
+      using_data <- MCA___refugee_camp___status_open
+      id_selection <- as.logical(ID_status_open*ID_refugee_camp)
+    }
+    if (input$status_variables=="Open-Rural"){
+      using_data <- MCA___refugee_camp___status_open_rural
+      id_selection <- as.logical(ID_status_open_rural*ID_refugee_camp)
+    }
+    if (input$status_variables=="Open-Not Rural"){
+      using_data <- MCA___refugee_camp___status_open_all_urban
+      id_selection <- as.logical(ID_status_open_all_urban*ID_refugee_camp)
+    }
+    if (input$status_variables=="Closed"){
+      using_data <- MCA___refugee_camp___status_closed
+      id_selection <- as.logical(ID_status_closed*ID_refugee_camp)
+    }
+    if (input$status_variables=="All"){
+      using_data <- MCA___refugee_camp___status_all
+      id_selection <- as.logical(ID_refugee_camp)
+    }
+
+
+    if(input$factor_variable1=="Lifespan"){
+      type_factor<-"Lifespan..years."
+    }
+    if(input$factor_variable1=="Density"){
+      type_factor<-"Density...People.km2."
+    }
+
+    data_MCA<-data.frame(Similarity = sort(using_data[["sqload"]][,1],decreasing = T))
+
+    names_MCA = row.names(data_MCA)[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA))))]
+    data_MCA<-data.frame(Similarity=data_MCA[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA)))),])
+    row.names(data_MCA)<-names_MCA
+    
+    data_MCA <- round(data_MCA,3)
+
+    main<-data_MCA[order(data_MCA$Similarity,decreasing = T)[1:6],1]
+    main_names<-row.names(data_MCA)[order(data_MCA$Similarity,decreasing = T)[1:6]]
+    
+    main<-data.frame(Similarity=main,Names=main_names)
+    main$Order<-as.character(letters[c(1:dim(main)[1])])
+    
+  hc <- hchart(main,type="bar",hcaes(y=Similarity,group=Order,grvar=Names,col=Names),dataLabels = list(enabled = TRUE, format='{point.grvar}'),showInLegend=F,column = list(stacking = "normal")) %>%
+hc_tooltip(pointFormat = "{point.grvar}") %>% hc_xAxis(visible=F)
+
+  hc
+  }) 
+
+
+```
+
+
+### Table ranking the most similar to my Factor of interest?
+```{r}
+
+
+    DT::renderDataTable({
+
+
+    using_data <- MCA___refugee_camp___status_all
+    id_selection <- rep(T,length(ID_refugee_camp))
+
+    if (input$status_variables=="Open"){
+      using_data <- MCA___refugee_camp___status_open
+      id_selection <- as.logical(ID_status_open*ID_refugee_camp)
+    }
+    if (input$status_variables=="Open-Rural"){
+      using_data <- MCA___refugee_camp___status_open_rural
+      id_selection <- as.logical(ID_status_open_rural*ID_refugee_camp)
+    }
+    if (input$status_variables=="Open-Not Rural"){
+      using_data <- MCA___refugee_camp___status_open_all_urban
+      id_selection <- as.logical(ID_status_open_all_urban*ID_refugee_camp)
+    }
+    if (input$status_variables=="Closed"){
+      using_data <- MCA___refugee_camp___status_closed
+      id_selection <- as.logical(ID_status_closed*ID_refugee_camp)
+    }
+    if (input$status_variables=="All"){
+      using_data <- MCA___refugee_camp___status_all
+      id_selection <- as.logical(ID_refugee_camp)
+    }
+
+
+    if(input$factor_variable1=="Lifespan"){
+      type_factor<-"Lifespan..years."
+    }
+    if(input$factor_variable1=="Density"){
+      type_factor<-"Density...People.km2."
+    }
+
+    data_MCA<-data.frame(Similarity = sort(using_data[["sqload"]][,1],decreasing = T))
+    
+
+    names_MCA = row.names(data_MCA)[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA))))]
+    data_MCA<-data.frame(Similarity=data_MCA[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA)))),])
+    row.names(data_MCA)<-names_MCA
+    
+    data_MCA <- round(data_MCA,3)
+
+    DT::datatable(data_MCA,fillContainer=T)
+    
+    })
+    
+  
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+IDP Settlement
+=======================================================================
+Inputs {.sidebar}
+-------------------------------------
+```{r}
+
+selectInput(inputId = "factor_variable2",
+                   label = "Factor of Interest",
+            choices = c("Lifespan","Density"))
+
+```
+
+Row {data-height=500} 
+-------------------------------------
+
+### How do the variables correlate with my Factor of interest?
+
+```{r}
+
+  renderHighchart({
+
+    using_data <- MCA___IDP_settlement___status_all
+    id_selection <- rep(T,length(ID_IDP_settlement))
+
+    if(input$factor_variable2=="Lifespan"){
+      type_factor<-"Lifespan..years."
+    }
+    if(input$factor_variable2=="Density"){
+      type_factor<-"Density...People.km2."
+    }
+
+    data_MCA<-as.matrix(proxy::simil(using_data[["quanti"]][["coord"]],"cosine"))
+    data_MCA<-data.frame(data_MCA)
+    main <- data.frame(Names=colnames(data_MCA)[-which(colnames(data_MCA)==type_factor)],Correlation=data_MCA[-which(colnames(data_MCA)==type_factor),which(colnames(data_MCA)==type_factor)])
+    main<-main[order(as.numeric(main[,2])),]
+
+      main<-main[which(!c(main$Names%in%groups$Location | main$Names%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),main$Names))),]
+
+    main$Direction<-as.numeric(main[,2])>=0
+    main$Direction[main$Direction==F]<-c("Below")
+    main$Direction[main$Direction==T]<-c("Above")
+
+
+    main_1 <- main[which(main$Names %in% c("Lifespan..years.","Population","Density...People.km2.","Area...m2.person.","Size..km2.")),]
+    # main_2 <- main[which(main$Names %in% c("Percentage_Male","Percentage_Female")),]
+    main_3 <- main[which(main$Names %in% c("Percentage_0.to.11","Percentage_12.to.17","Percentage_18.to.59","Percentage._60.plus")),]
+    main_space <- rep(0,dim(main)[2])
+
+    main <- rbind(main_1,
+                  main_space,
+                  # main_2,
+                  # main_space,
+                  main_3)
+
+
+    main$Order<-c(1:dim(main)[1])
+
+  hc <- hchart(main,type="column",hcaes(y=Correlation,x=Order,group=Direction,grvar=Names),dataLabels = list(enabled = TRUE, format='{point.grvar}'),showInLegend=F) %>% hc_tooltip(pointFormat = "{point.grvar}") %>% hc_xAxis(visible=F)
+
+
+  hc
+
+  }) 
+
+
+```
+
+
+### Which overall group contributes to my Factor of interest the most?
+```{r}
+
+  renderHighchart({
+
+
+    using_data <- MCA___IDP_settlement___status_all
+    id_selection <- rep(T,length(ID_IDP_settlement))
+
+    data_MCA<-as.matrix(cor(do.call('cbind',lapply(using_data[["ind.partial"]],function(X){X[,1]}))))
+    data_MCA<-data.frame(data_MCA)
+    main <- data.frame(Names=colnames(data_MCA)[-which(colnames(data_MCA)==input$factor_variable2)],Contribution=data_MCA[-which(colnames(data_MCA)==input$factor_variable2),which(colnames(data_MCA)==input$factor_variable2)])
+    main<-main[order(as.numeric(main[,2])),]
+
+    main$Direction<-as.numeric(main[,2])>=0
+    main$Direction[main$Direction==F]<-c("Below")
+    main$Direction[main$Direction==T]<-c("Above")
+
+    main$Order<-as.character(letters[c(1:dim(main)[1])])
+
+
+    main$SubGroups <- do.call('c',lapply(main$Names,function(X){
+      paste0(groups[[which(names(groups)==X)]],collapse=" ; ")
+    }))
+
+  hc <- hchart(main,type="bar",hcaes(y=Contribution,group=Order,grvar=Names,col=Names,label=SubGroups),dataLabels = list(enabled = TRUE, format='{point.grvar}'),showInLegend=F,column = list(stacking = "normal")) %>%
+hc_tooltip(pointFormat = "{point.label}") %>% hc_xAxis(visible=F)
+
+  hc
+  }) 
+
+
+```
+
+
+
+
+Row {data-height=500} 
+-------------------------------------
+
+
+
+### Barplot ranking the most similar to my Factor of interest?
+```{r}
+
+  renderHighchart({
+
+
+    using_data <- MCA___IDP_settlement___status_all
+    id_selection <- rep(T,length(ID_IDP_settlement))
+
+    if(input$factor_variable2=="Lifespan"){
+      type_factor<-"Lifespan..years."
+    }
+    if(input$factor_variable2=="Density"){
+      type_factor<-"Density...People.km2."
+    }
+
+
+    data_MCA<-data.frame(Similarity = sort(using_data[["sqload"]][,1],decreasing = T))
+
+    names_MCA = row.names(data_MCA)[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA))))]
+    data_MCA<-data.frame(Similarity=data_MCA[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA)))),])
+    row.names(data_MCA)<-names_MCA
+    
+    data_MCA <- round(data_MCA,3)
+
+    main<-data_MCA[order(data_MCA$Similarity,decreasing = T)[1:6],1]
+    main_names<-row.names(data_MCA)[order(data_MCA$Similarity,decreasing = T)[1:6]]
+    
+    main<-data.frame(Similarity=main,Names=main_names)
+    main$Order<-as.character(letters[c(1:dim(main)[1])])
+    
+  hc <- hchart(main,type="bar",hcaes(y=Similarity,group=Order,grvar=Names,col=Names),dataLabels = list(enabled = TRUE, format='{point.grvar}'),showInLegend=F,column = list(stacking = "normal")) %>%
+hc_tooltip(pointFormat = "{point.grvar}") %>% hc_xAxis(visible=F)
+
+  hc
+  }) 
+
+
+```
+
+
+### Table ranking the most similar to my Factor of interest?
+```{r}
+
+
+    DT::renderDataTable({
+
+    using_data <- MCA___IDP_settlement___status_all
+    id_selection <- rep(T,length(ID_IDP_settlement))
+
+    if(input$factor_variable2=="Lifespan"){
+      type_factor<-"Lifespan..years."
+    }
+    if(input$factor_variable2=="Density"){
+      type_factor<-"Density...People.km2."
+    }
+
+
+    data_MCA<-data.frame(Similarity = sort(using_data[["sqload"]][,1],decreasing = T))
+
+    names_MCA = row.names(data_MCA)[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA))))]
+    data_MCA<-data.frame(Similarity=data_MCA[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA)))),])
+    row.names(data_MCA)<-names_MCA
+    
+    data_MCA <- round(data_MCA,3)
+
+    DT::datatable(data_MCA,fillContainer=T)
+
+    })
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Community Settlement
+=======================================================================
+Inputs {.sidebar}
+-------------------------------------
+```{r}
+
+selectInput(inputId = "factor_variable3",
+                   label = "Factor of Interest",
+            choices = c("Lifespan","Density"))
+
+```
+
+Row {data-height=500} 
+-------------------------------------
+
+### How do the variables correlate with my Factor of interest?
+
+```{r}
+
+  renderHighchart({
+
+    using_data <- MCA___community_settlement___status_all
+    id_selection <- rep(T,length(ID_community_settlement))
+
+    if(input$factor_variable3=="Lifespan"){
+      type_factor<-"Lifespan..years."
+    }
+    if(input$factor_variable3=="Density"){
+      type_factor<-"Density...People.km2."
+    }
+
+    data_MCA<-as.matrix(proxy::simil(using_data[["quanti"]][["coord"]],"cosine"))
+    data_MCA<-data.frame(data_MCA)
+    main <- data.frame(Names=colnames(data_MCA)[-which(colnames(data_MCA)==type_factor)],Correlation=data_MCA[-which(colnames(data_MCA)==type_factor),which(colnames(data_MCA)==type_factor)])
+    main<-main[order(as.numeric(main[,2])),]
+
+
+      main<-main[which(!c(main$Names%in%groups$Location | main$Names%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),main$Names))),]
+
+    main$Direction<-as.numeric(main[,2])>=0
+    main$Direction[main$Direction==F]<-c("Below")
+    main$Direction[main$Direction==T]<-c("Above")
+    
+    print(main$Names)
+    
+    main_1 <- main[which(main$Names %in% c("Lifespan..years.","Population","Density...People.km2.","Area...m2.person.","Size..km2.")),]
+    # main_2 <- main[which(main$Names %in% c("Percentage_Male","Percentage_Female")),]
+    main_3 <- main[which(main$Names %in% c("Percentage_0.to.11","Percentage_12.to.17","Percentage_18.to.59","Percentage._60.plus")),]
+    main_space <- rep(0,dim(main)[2])
+
+    main <- rbind(main_1,
+                  main_space,
+                  # main_2,
+                  # main_space,
+                  main_3)
+
+    main$Order<-c(1:dim(main)[1])
+
+  hc <- hchart(main,type="column",hcaes(y=Correlation,x=Order,group=Direction,grvar=Names),dataLabels = list(enabled = TRUE, format='{point.grvar}'),showInLegend=F) %>% hc_tooltip(pointFormat = "{point.grvar}") %>% hc_xAxis(visible=F)
+
+
+  hc
+
+  }) 
+
+
+```
+
+### Which overall group contributes to my Factor of interest the most?
+```{r}
+
+  renderHighchart({
+
+
+    using_data <- MCA___community_settlement___status_all
+    id_selection <- rep(T,length(ID_community_settlement))
+
+
+    data_MCA<-as.matrix(cor(do.call('cbind',lapply(using_data[["ind.partial"]],function(X){X[,1]}))))
+    data_MCA<-data.frame(data_MCA)
+    main <- data.frame(Names=colnames(data_MCA)[-which(colnames(data_MCA)==input$factor_variable3)],Contribution=data_MCA[-which(colnames(data_MCA)==input$factor_variable3),which(colnames(data_MCA)==input$factor_variable3)])
+    main<-main[order(as.numeric(main[,2])),]
+
+    main$Direction<-as.numeric(main[,2])>=0
+    main$Direction[main$Direction==F]<-c("Below")
+    main$Direction[main$Direction==T]<-c("Above")
+
+    main$Order<-as.character(letters[c(1:dim(main)[1])])
+
+
+    main$SubGroups <- do.call('c',lapply(main$Names,function(X){
+      paste0(groups[[which(names(groups)==X)]],collapse=" ; ")
+    }))
+
+  hc <- hchart(main,type="bar",hcaes(y=Contribution,group=Order,grvar=Names,col=Names,label=SubGroups),dataLabels = list(enabled = TRUE, format='{point.grvar}'),showInLegend=F,column = list(stacking = "normal")) %>%
+hc_tooltip(pointFormat = "{point.label}") %>% hc_xAxis(visible=F)
+
+  hc
+  }) 
+
+
+```
+
+
+
+
+
+Row {data-height=500} 
+-------------------------------------
+
+
+### Barplot ranking the most similar to my Factor of interest?
+```{r}
+
+  renderHighchart({
+
+
+    using_data <- MCA___community_settlement___status_all
+    id_selection <- rep(T,length(ID_community_settlement))
+
+
+    if(input$factor_variable3=="Lifespan"){
+      type_factor<-"Lifespan..years."
+    }
+    if(input$factor_variable3=="Density"){
+      type_factor<-"Density...People.km2."
+    }
+
+
+    data_MCA<-data.frame(Similarity = sort(using_data[["sqload"]][,1],decreasing = T))
+
+    names_MCA = row.names(data_MCA)[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA))))]
+    data_MCA<-data.frame(Similarity=data_MCA[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA)))),])
+    row.names(data_MCA)<-names_MCA
+    
+    data_MCA <- round(data_MCA,3)
+
+    main<-data_MCA[order(data_MCA$Similarity,decreasing = T)[1:6],1]
+    main_names<-row.names(data_MCA)[order(data_MCA$Similarity,decreasing = T)[1:6]]
+    
+    main<-data.frame(Similarity=main,Names=main_names)
+    main$Order<-as.character(letters[c(1:dim(main)[1])])
+    
+  hc <- hchart(main,type="bar",hcaes(y=Similarity,group=Order,grvar=Names,col=Names),dataLabels = list(enabled = TRUE, format='{point.grvar}'),showInLegend=F,column = list(stacking = "normal")) %>%
+hc_tooltip(pointFormat = "{point.grvar}") %>% hc_xAxis(visible=F)
+
+  hc
+  }) 
+
+
+```
+
+
+### Table ranking the most similar to my Factor of interest?
+```{r}
+
+
+
+ 
+    DT::renderDataTable({
+
+
+    using_data <- MCA___community_settlement___status_all
+    id_selection <- rep(T,length(ID_community_settlement))
+
+
+    if(input$factor_variable3=="Lifespan"){
+      type_factor<-"Lifespan..years."
+    }
+    if(input$factor_variable3=="Density"){
+      type_factor<-"Density...People.km2."
+    }
+
+
+    data_MCA<-data.frame(Similarity = sort(using_data[["sqload"]][,1],decreasing = T))
+
+    names_MCA = row.names(data_MCA)[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA))))]
+    data_MCA<-data.frame(Similarity=data_MCA[which(!c(row.names(data_MCA)%in%groups$Location | row.names(data_MCA)%in%groups$Climate | grepl(pattern = c("*Temperature*|*Rain*"),row.names(data_MCA)))),])
+    row.names(data_MCA)<-names_MCA
+    
+    data_MCA <- round(data_MCA,3)
+
+    DT::datatable(data_MCA,fillContainer=T)
+
+    })
+  
+
+```
+
